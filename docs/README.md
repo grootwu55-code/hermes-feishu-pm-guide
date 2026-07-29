@@ -1,79 +1,66 @@
-# 飞书 + Hermes 项目管理完全指南
+# 飞书 + Hermes：产品经理的 AI 信息中枢
 
 > **永久地址:** https://grootwu55-code.github.io/hermes-feishu-pm-guide/
-> **版本:** v1.0 · 最后更新: 2026-07-29
+> **版本:** v2.0 · 最后更新: 2026-07-29
 
 ---
 
-## 概述
+## 这是什么
 
-本指南教你如何通过飞书 + Hermes 实现 **AI 驱动的项目管理**：
+你不是开发者，你是**产品经理**。你要的不是 AI 帮你写代码，而是 AI 帮你管理信息流。
 
-- 🗂️ 每个飞书话题 = 一个项目，上下文独立隔离
-- 🤖 Hermes 自动维护项目进度、需求、任务、Bug 用例库
-- 🚀 基于项目资料驱动 Hermes 完成开发任务
-- 👥 团队成员可共同参与（人工编辑 + 各自 Hermes Bot）
+Hermes 是你的**第二大脑**——你把所有东西倒给它（会议纪要、业务资料、邮件、你的判断），它帮你收纳整理，在你需要的时候产出（进度汇总、邮件草稿、原型设计、待办提醒）。
+
+```
+你的各种输入                         Hermes 的处理                         你的输出
+─────────────────────────────────────────────────────────────────────────────────
+会议纪要 ──────────┐
+业务方给的资料 ────┤
+邮件内容 ──────────┤
+你的判断/决策 ─────┼──→  [Hermes 信息中枢] ──→  项目进度汇总
+待办/提醒 ─────────┤                           邮件草稿
+阻塞点/风险 ───────┤                           待办清单
+原型需求 ──────────┘                           原型 HTML
+                                               定时提醒
+```
 
 ---
 
-## 一、架构总览
+## 一、架构
 
 ```
-飞书群聊 "产品团队"
-│
-├── 🧵 话题 "项目A：用户管理系统"
-│   ├── Hermes 自动绑定 → ~/projects/user-mgmt/
-│   │   ├── project.md          ← 项目元信息 + 当前状态
-│   │   ├── requirements.md     ← 需求清单（字典化字段管理）
-│   │   ├── tasks.md            ← 任务看板
-│   │   ├── bugs.md             ← Bug 用例库（每修一个 Bug 登记一条）
-│   │   ├── design/             ← 设计文档
-│   │   └── notes/              ← 进度日志
-│   └── Bitable 仪表盘（可选，只读同步）
-│
-├── 🧵 话题 "项目B：数据分析平台"
-│   └── Hermes 绑定 → ~/projects/data-platform/
-│
-└── 🧵 话题 "项目C"
-    └── Hermes 绑定 → ~/projects/project-c/
+~/pm-hub/                        ← 你的第二大脑（Git 备份，永不丢失）
+├── inbox/                       ← 信息入口，待处理
+├── projects/
+│   ├── project-alpha/           ← 每个需求一个目录
+│   │   ├── overview.md          ← 一页纸：状态/阶段/阻塞/下一步
+│   │   ├── timeline.md          ← 里程碑时间线
+│   │   ├── decisions.md         ← 决策日志
+│   │   ├── contacts.md          ← 项目相关人
+│   │   └── materials/           ← 原始资料归档
+│   └── project-beta/
+├── tasks.md                     ← 全局待办
+├── reminders.md                 ← 提醒事项
+├── contacts.md                  ← 全局通讯录
+└── archive/                     ← 已完成/归档
 ```
 
-**设计原则（第一性原理 + 剃刀）：**
-
-| 决策 | 理由 |
-|---|---|
-| Git + Markdown 作为 Source of Truth | 零新代码依赖，Hermes 现有工具全覆盖，天然版本控制 + 冲突解决 |
-| Bitable 作为可选的只读仪表盘 | 满足"在飞书里看到表格"的需求，但不作为主数据源（避免双向同步冲突） |
-| 每个项目一个话题 | 利用飞书话题的天然隔离，无需额外路由逻辑 |
-| project.md 驱动一切 | 单文件绑定，Hermes 进入话题后加载 200 字摘要即可恢复全部上下文 |
+**设计原则：**
+- 📂 **文件系统是真相来源** — 所有信息都落盘，不依赖对话记忆
+- 🔍 **一条信息只存一处** — overview.md 是项目状态的核心入口
+- 🗂️ **先收后理** — inbox 作为缓冲，Hermes 自动归类归档
+- 🧹 **手术刀式编辑** — 用 `patch` 改文件，不覆盖手动添加的内容
 
 ---
 
-## 二、准备工作
+## 二、飞书配置
 
-### 2.1 飞书 Bot 配置
+### 2.1 话题配置
 
-> 详细飞书 Bot 配置请参考：[飞书接入 Hermes 完整配置指南](./docs/feishu-setup.md)
-
-核心步骤：
-
-1. 在 [飞书开放平台](https://open.feishu.cn/app) 创建企业自建应用
-2. 开启机器人能力 + 开通消息权限（`im:message`, `im:chat`, `im:resource`）
-3. 配置事件订阅（WebSocket 模式，无需公网 IP）
-4. 获取 **App ID** 和 **App Secret**
-
-### 2.2 Hermes 配置
-
-在 `~/.hermes/.env` 中添加：
-
-```bash
-FEISHU_APP_ID=cli_xxxxxxxxxxxx
-FEISHU_APP_SECRET=***
-```
-
-在 `~/.hermes/config.yaml` 中添加：
+在飞书群中创建话题，Hermes 配置如下：
 
 ```yaml
+# ~/.hermes/config.yaml
 platforms:
   feishu:
     enabled: true
@@ -81,338 +68,245 @@ platforms:
       app_id: ${FEISHU_APP_ID}
       app_secret: ${FEISHU_APP_SECRET}
       connection_mode: websocket
-      require_mention: true
-      # 话题内多会话：共用上下文（协作模式）
+      require_mention: false       # 🔑 话题内免 @bot！
       group_sessions_per_user: false
       thread_sessions_per_user: false
 ```
 
-启动网关：
+**关键配置：**
+- `require_mention: false` — 在话题中说话即触发 Hermes，无需 @bot
+- `session_reset.mode: none` — 上下文永不自动清除（已在全局配置中设置）
 
-```bash
-hermes gateway install
-hermes gateway start
-```
+### 2.2 永久上下文
 
-### 2.3 安装自动化 Skill
+Hermes 已配置 `session_reset.mode: none`（永久记忆），同时自动将以下信息写入 memory：
 
-Hermes 的项目管理自动化 Skill 位于 `~/.hermes/skills/devops/feishu-project-management/`，会在进入飞书话题时自动触发。
+- 话题 ID → 项目目录的绑定
+- 你的偏好和工作习惯
+- 常用联系人和项目别名
 
-确认 Skill 已安装：
+即使 Hermes 重启，所有对话历史保留在 SQLite，项目文件保留在 `~/pm-hub/`，**不会丢失任何东西**。
 
-```bash
-hermes skills list | grep feishu-project
-```
-
-### 2.4 创建项目模板
-
-```bash
-ls ~/projects/_template/
-# project.md  requirements.md  tasks.md  bugs.md  design/  notes/
-```
+> 📖 详细飞书配置：[feishu-setup.md](./feishu-setup.md)
 
 ---
 
-## 三、日常使用
+## 三、日常工作流
 
 ### 3.1 创建新项目
 
-在飞书中创建一个**群聊**，然后创建**话题**：
+在飞书话题中说：
 
 ```
-群聊 → 右上角 "···" → 开启「话题模式」 → 创建话题「项目A：用户管理系统」
-```
-
-在话题中 @Hermes：
-
-```
-@Hermes 这是新项目：用户管理系统。
-需求是给公司内部做一个员工信息的增删改查系统，
-技术栈用 Python FastAPI + Vue3。
-帮我初始化项目。
+这是一个新需求：用户积分体系改版。
+业务目标是提升 DAU 留存率，预计 Q3 上线。
+核心功能包括积分获取规则调整、积分商城改版、积分过期提醒。
+技术栈确定用 Go + React。
+开发负责人是张三，设计师是李四。
 ```
 
 Hermes 会自动：
-1. 在 `~/projects/` 下创建 `user-mgmt/` 目录（从模板复制）
-2. 填充 `project.md`（项目名、状态、描述、日期）
-3. 填充 `requirements.md`（把你的需求结构化录入）
-4. 初始化 Git 仓库
-5. 保存话题→项目绑定到 memory
+1. 创建 `~/pm-hub/projects/user-points/` 目录
+2. 填充 overview.md（提取关键信息）
+3. 填充 contacts.md（提取人员信息）
+4. 保存话题绑定到 memory
+5. 回复确认：「项目已创建，后续在这里继续说就行」
 
-### 3.2 更新进度
+### 3.2 信息收纳
 
-在话题中自然对话即可，Hermes 会自动识别并更新：
-
-| 你说的话 | Hermes 自动操作 |
-|---|---|
-| "完成了用户列表接口" | 在 `tasks.md` 将该任务标记为已完成，在 `notes/2026-07-29.md` 添加进度日志 |
-| "新需求：要支持批量导入" | 在 `requirements.md` 追加 REQ-003，自动分配 ID |
-| "登录接口有个 bug" | 在 `bugs.md` 添加 BUG-002，记录描述和发现日期 |
-| "开始做前端页面" | 在 `tasks.md` 将该任务移至进行中，更新 `project.md` 状态 |
-
-查看项目状态：
+把你收到的任何资料倒给 Hermes：
 
 ```
-@Hermes 项目状态怎么样了？
+这是今天跟业务方开会的纪要：
+
+1. 积分获取规则确认了，用户每天最多获取100分
+2. 商城改版推迟到 Q4，跟商品团队还没对齐
+3. 过期提醒的文案需要法务审核
+4. 李四下周休假，设计稿周五前需要确认
 ```
 
-Hermes 会读取 `project.md` + `tasks.md`，回复当前进度摘要。
+Hermes 自动：
+- 保存原始记录到 `materials/2026-07-29-meeting.md`
+- 更新 overview.md（阻塞项：商城改版推迟、过期提醒等法务）
+- 在 decisions.md 追加：积分上限 100 分/天已确认
+- 在 timeline.md 追加：周五前确认设计稿
+- 在 tasks.md 追加待办：跟进法务审核、跟进商品团队
+- 回复摘要：「已归档。新增 2 个阻塞项、1 个决策、2 个待办」
 
-### 3.3 驱动开发
-
-当项目资料充分后，直接让 Hermes 开发：
-
-```
-@Hermes 按照 requirements.md 的 REQ-001 和 REQ-002，帮我实现用户管理 API。
-设计文档在 design/architecture.md，记得写测试。
-```
-
-Hermes 会：
-1. 读取 `requirements.md` + `design/architecture.md` 获取完整上下文
-2. 调用 Claude Code 执行开发
-3. 遵循你的编码规范（第一性原理 + 剃刀、对抗性测试、Bug 用例库）
-4. 完成后运行测试验证
-5. 更新 `tasks.md` 标记任务完成
-
-### 3.4 查看项目文档
+### 3.3 阻塞与风险管理
 
 ```
-@Hermes 给我看看这个项目的完整需求
-@Hermes 有哪些 Bug 还没修？
-@Hermes 最近一周的进度日志
+项目 blocked 了，商品团队说 Q4 才能排期，需要升级
 ```
+
+Hermes：
+- 更新 overview.md：阻塞项 + 健康度 🔴
+- 记录 decisions.md
+- 询问：「需要我帮你生成升级邮件给商品团队的负责人吗？」
+
+### 3.4 生成邮件
+
+```
+帮我写封邮件给商品团队负责人王五，关于商城改版排期的问题
+```
+
+Hermes：
+1. 读取 overview.md（获取项目背景）
+2. 读取 contacts.md（获取王五的信息）
+3. 生成邮件草稿：
+
+```
+主题：关于积分商城改版排期对齐 - 需升级
+
+王五你好，
+
+用户积分体系改版项目中，积分商城改造部分当前存在排期问题：
+- 原计划：Q3 上线
+- 现状：商品团队反馈 Q4 才能排期
+
+影响：商城改版是积分获取后最重要的消费场景，延期将影响整体 DAU 留存指标。
+
+期望：能否本周内对齐一个折中方案？比如 Q3 先上 MVP（仅改版首页 + 兑换流程），Q4 再做完整版。
+
+如有时间周二下午沟通，我可以预约会议。
+
+谢谢
+```
+
+4. 保存草稿到 inbox/，等你审阅后发送
+
+### 3.5 待办管理
+
+```
+待办：周五前跟法务确认过期提醒文案
+待办：约张三和李四下周一下午2点评审设计稿
+待办：整理积分体系的数据指标给领导汇报用，周三前
+```
+
+Hermes 写入 tasks.md，自动按优先级和截止时间排序。
+
+```
+显示我的待办
+```
+
+Hermes 回复：
+
+```
+📋 你的待办：
+
+🔴 紧急
+  1. 整理积分指标数据 — 积分体系 — 周三前
+  2. 跟法务确认文案 — 积分体系 — 周五前
+
+🟡 本周
+  3. 约设计评审 — 积分体系 — 下周一
+
+共 3 项待办
+```
+
+### 3.6 提醒
+
+```
+下周三下午3点提醒我跟王五的排期对齐会议
+```
+
+Hermes：
+1. 写入 reminders.md
+2. 创建 cronjob，到时间自动在飞书话题中提醒
+3. 回复：「已设定，下周三下午 3:00 会在这里提醒你」
+
+### 3.7 进度汇总
+
+```
+所有项目进度
+```
+
+Hermes 扫描所有 projects/*/overview.md，回复：
+
+```
+📊 项目进度汇总 (2026-07-29)
+
+| 项目 | 阶段 | 健康度 | 阻塞项 | 下一步 |
+|---|---|---|---|---|
+| 用户积分改版 | 设计 | 🟡 | 法务审核中；商城排期未对齐 | 周五设计评审 |
+| 支付流程优化 | 开发 | 🟢 | 无 | 周四联调 |
+| 数据看板 | 需求 | 🟡 | 等业务方确认指标 | 尽快对齐 |
+
+3 个项目：1 🟢 / 2 🟡 / 0 🔴
+```
+
+```
+本周工作汇总 / 周报
+```
+
+Hermes 生成格式化的周报文档。
+
+### 3.8 原型设计
+
+```
+帮我设计一个积分商城的移动端原型，核心功能：
+1. 首页展示可兑换商品列表
+2. 商品详情页有兑换按钮
+3. 我的积分余额在顶部显示
+```
+
+Hermes 调用 Claude Code 生成 HTML 原型 → 保存到 materials/ → 截图发到飞书。
 
 ---
 
-## 四、团队协作
+## 四、更多工作流
 
-> 📖 完整团队协作指南请阅读：[团队成员接入指南](./team-collaboration.md)
-
-### 4.1 协作模型
-
-```
-           Git 仓库（Source of Truth）
-                    ↕
-    ┌───────────────┼───────────────┐
-    ▼               ▼               ▼
-  你              团队成员A       团队成员B
-  (飞书话题A)    (飞书话题B)     (GitHub PR)
-  Hermes 自动    人工编辑md     Her own Hermes
-  写 project.md  写 requirements  也绑定同项目
-```
-
-**Git 是唯一的真相来源。** 所有修改无论来自 Hermes 还是人工，都通过 Git commit 记录，永远不会冲突丢数据。
-
-### 4.2 团队成员如何参与
-
-**方式 1：直接在 GitHub 编辑文件**（最简单）
-
-团队成员不需要任何配置，直接访问项目仓库的 Markdown 文件：
-
-- 编辑 `requirements.md` 添加需求
-- 编辑 `tasks.md` 更新任务状态
-- 编辑 `bugs.md` 报告 Bug
-
-Hermes 下次进入话题时会自动 `git pull` 同步最新变更。
-
-**方式 2：用自己的 Hermes Bot**（推荐）
-
-每个团队成员如果也有 Hermes，可以绑定到同一个项目：
-
-1. 把自己的 Hermes Bot 添加到飞书群
-2. 创建自己的话题（如「项目A - Alice 的工作区」）
-3. 在话题中 @自己的Bot，让它绑定到同一个 Git 仓库：
-
-```
-@Alice的Hermes 绑定到项目 ~/projects/user-mgmt/，这是我的工作区
-```
-
-4. Alice 的 Hermes 会 `git pull` 加载项目上下文，之后可独立工作
-
-> ⚠️ 注意：两个 Hermes 不要同时编辑同一个文件。如果发生冲突，Git 会标记冲突行，人工解决即可。
-
-**方式 3：发布到飞书群公告**
-
-Hermes 可以定期推送项目摘要到飞书群主聊天区：
-
-```
-@Hermes 把项目进度摘要发到群公告
-```
-
-### 4.3 多人协作最佳实践
-
-| 场景 | 推荐方式 |
+| 你说 | Hermes 做 |
 |---|---|
-| 产品经理提需求 | GitHub 编辑 `requirements.md` → Hermes 自动 pull |
-| 开发人员认领任务 | 编辑 `tasks.md` 把自己加到"分配"列 |
-| QA 报告 Bug | GitHub 编辑 `bugs.md` |
-| 每日站会 | @Hermes 在话题中口述，Hermes 更新 tasks.md + notes |
-| 代码审查 | GitHub PR（Claude Code 生成的代码自动创建 PR） |
+| "这是XX发来的邮件，帮我处理" | 归档到 materials/，提取关键信息，更新项目状态 |
+| "项目X的最新状态是什么" | 读取 overview.md 回复摘要 |
+| "更新项目X的阶段为研发中" | patch overview.md |
+| "项目X的决策记录有哪些" | 读取 decisions.md 回复 |
+| "帮我整理XX项目的资料给新同事" | 扫描项目目录，生成资料清单 + 摘要 |
+| "XX的邮箱/飞书是什么" | 查询 contacts.md |
+| "帮我安排XX时间跟XX开会" | 写入 tasks.md + 设置提醒 |
 
 ---
 
-## 五、Bitable 仪表盘（可选）
+## 五、原理
 
-### 5.1 概述
+### 为什么用文件系统而不是项目管理工具？
 
-如果你希望在飞书中看到一个可视化的任务看板/进度表，可以配置 Bitable 作为**只读仪表盘**。
+> 剃刀原理：Hermes 最强的能力是读写文件，而不是调用 Web API。
 
-```
-Git 仓库（真相来源）
-    │
-    │ Hermes 单向同步
-    ▼
-Bitable 多维表格（只读仪表盘）
-    │
-    │ 团队成员在飞书中查看（不编辑）
-    ▼
-飞书群聊中的 Bitable 卡片
-```
+- **文件系统是通用接口** — 你可以用终端、VS Code、GitHub 查看/编辑，不依赖任何工具
+- **Markdown 是人类和 AI 的共同语言** — 你可以直接打开看懂，Hermes 也能精确解析
+- **零新工具开发** — `read_file` / `patch` / `write_file` 是 Hermes 的核心能力
+- **Git 版本控制** — 每次修改都有历史记录，永远不会丢数据
 
-> ⚠️ **Bitable 是只读镜像。** 所有修改必须在 Git 中进行。这避免了双向同步的冲突。
+### 为什么不是飞书多维表格？
 
-### 5.2 配置 Bitable
+- 多维表格是**展示层**，不是**存储层**
+- Hermes 读写文件比调用 API 快 10 倍、可靠 100 倍
+- 如果未来需要仪表盘，可以单向从文件同步到 Bitable（实现成本低）
 
-1. 在飞书中创建一个多维表格
-2. 创建以下表：
+---
 
-| 表名 | 对应文件 | 用途 |
-|---|---|---|
-| 任务看板 | `tasks.md` | 任务状态可视化 |
-| 需求清单 | `requirements.md` | 需求总览 |
-| Bug 追踪 | `bugs.md` | Bug 状态 |
-| 进度日志 | `notes/` | 最近更新 |
-
-3. 在 `project.md` 中添加 Bitable 的 app_token：
-
-```markdown
-## Bitable
-- app_token: BQRMbcxxxxxx
-- 用途: 只读仪表盘，由 Hermes 自动同步
-```
-
-4. 启用 Bitable 工具：
+## 六、开始使用
 
 ```bash
-hermes tools enable feishu_doc  # Bitable 工具注册在此 toolset 下
-```
+# 1. 确认 Skill 已安装
+hermes skills list | grep pm-hub
 
-5. Hermes 在每次更新 Git 后，会检查是否有 Bitable 配置，如有则运行单向同步。
+# 2. 确认目录存在
+ls ~/pm-hub/
 
-### 5.3 Bitable 工具命令
+# 3. 配置飞书（如果没有）
+# 参考: https://grootwu55-code.github.io/hermes-feishu-pm-guide/feishu-setup
 
-在飞书话题中：
-
-```
-@Hermes 把 tasks.md 同步到 Bitable
-@Hermes bitable 上显示一下所有未完成的 Bug
-@Hermes 更新 Bitable 仪表盘
+# 4. 在飞书话题中说话即可（无需 @bot）
 ```
 
 ---
 
-## 六、项目数据结构
+## 七、相关链接
 
-### project.md（关键文件）
-
-```markdown
-# 项目名
-## 当前状态
-| **阶段** | 开发 / 测试 / 上线 |
-| **进度** | 60% |
-| **优先级** | P1 |
-
-## 项目概述
-一句话描述
-
-## 关键链接
-- 代码仓库: https://github.com/.../repo
-- 飞书话题: oc_xxx / thread_yyy
-- Bitable: BQRMbcxxxxxx
-```
-
-### requirements.md
-
-```markdown
-| ID | 需求 | 验收标准 | 状态 | 备注 |
-|---|---|---|---|---|
-| REQ-001 | 用户登录 | 能通过账号密码登录 | ✅ 已完成 | |
-| REQ-002 | 用户列表 | 分页展示用户 | 🚧 开发中 | |
-| REQ-003 | 批量导入 | 支持 CSV 导入 | 📋 待开始 | |
-```
-
-### tasks.md
-
-```markdown
-## 进行中
-| T-003 | 实现批量导入接口 | REQ-003 | 4h | Alice |
-## 已完成
-| T-001 | 搭建项目框架 | REQ-001 | 2h | Alice |
-| T-002 | 实现用户列表接口 | REQ-002 | 3h | Alice |
-```
-
-### bugs.md
-
-```markdown
-## 未修复
-| BUG-002 | P2 | 登录后 token 未刷新 | 登录后等 30 分钟再请求 |
-## 已修复
-| BUG-001 | P1 | 用户列表返回 500 | 缺少分页参数默认值 | 7/28 | ✅ 回归通过 |
-```
-
----
-
-## 七、原理说明
-
-### 为什么 Git + Markdown 而不是纯 Bitable？
-
-> 从第一性原理出发：
-
-1. **Hermes 的核心能力是读写文件**（`read_file`, `write_file`, `patch`），不是调用 Web API。用文件系统是最短的路径。
-
-2. **Git 天然解决了所有协作问题**：版本历史、冲突检测、回滚、分支隔离——这些都是项目管理刚需。如果用 Bitable 做唯一数据源，你需要自己实现这些。
-
-3. **Bitable 的实时协同编辑模型与 AI 异步会话模型冲突。** Hermes 的一次对话可能持续数分钟，期间用户手动编辑 Bitable 会造成版本不一致。Git 的 commit-based 模型完美解决这个问题——Hermes 编辑时 lock 的是本地文件，最终通过 commit 合并。
-
-4. **剃刀原理**：Markdown 文件可以被任何人、任何工具读写。Bitable 需要飞书 API、lark_oapi SDK、自定义工具。复杂度高 10 倍，但功能没有本质提升。
-
-### Bitable 的正确角色
-
-Bitable 是 **展示层**，不是 **数据层**。它让不看 Git 的团队成员有一个直观的仪表盘，但所有修改必须经过 Git。这是一个单向同步管道：
-
-```
-[Git 仓库] --单向同步--> [Bitable 仪表盘]
-     ↑                        ↓
-  Hermes 编辑             团队成员查看
-  成员编辑                  （不通过这里修改）
-```
-
----
-
-## 八、常见问题
-
-**Q: 如果我没有飞书，能用这个方案吗？**
-
-A: 核心机制（Git + Markdown + Hermes）与飞书无关。你在 Discord、Telegram、CLI 中都可以使用同样的项目模板和 Skill。飞书只是会话载体。
-
-**Q: 一个项目可以有多个话题吗？**
-
-A: 可以。创建话题「项目A-后端」和「项目A-前端」，都绑定到同一个 `~/projects/project-a/` 目录。它们共享 Git 仓库的数据，但各自有独立的会话上下文。
-
-**Q: Bitable 同步频率是多少？**
-
-A: 每次 Hermes 更新 Git 文件后自动触发。如果 Bitable API 调用失败，不影响 Git 数据（Git 永远是 source of truth），Hermes 会在下一次会话重试。
-
-**Q: 团队成员的 Hermes 怎么知道绑定哪个项目？**
-
-A: Memory。Hermes 会记住话题→项目的绑定。团队成员可以让自己的 Hermes "加入"已有项目。
-
----
-
-## 九、相关链接
-
-- 代码仓库: [grootwu55-code/hermes-feishu-pm-guide](https://github.com/grootwu55-code/hermes-feishu-pm-guide)
-- 飞书 Bot 配置详情: [./docs/feishu-setup.md](./docs/feishu-setup.md)
-- Hermes 官方文档: [hermes-agent.nousresearch.com](https://hermes-agent.nousresearch.com/docs/)
-- 项目模板: `~/projects/_template/`
-- 自动化 Skill: `~/.hermes/skills/devops/feishu-project-management/`
+- 飞书配置: [feishu-setup.md](./feishu-setup.md)
+- 项目模板: `~/pm-hub/projects/_template/`
+- 自动化 Skill: `~/.hermes/skills/productivity/pm-hub-assistant/`
+- Hermes 官网: https://hermes-agent.nousresearch.com/docs/
